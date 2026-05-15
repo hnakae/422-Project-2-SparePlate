@@ -1,65 +1,121 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useState, useEffect, useCallback } from 'react';
+import { SP_DATA } from './data';
+import type { Listing, AppContext } from './types';
+import { Icons } from './components/Icons';
+import { ListingDrawer } from './components/ListingDrawer';
+import { PostListingModal } from './components/PostListingModal';
+import { HubView } from './views/HubView';
+import { BusinessView } from './views/BusinessView';
+import { AboutView } from './views/AboutView';
+
+type View = 'hub' | 'business' | 'about';
+type Role = 'recipient' | 'business';
+
+interface Toast {
+  id: string;
+  msg: string;
+}
+
+export default function SPApp() {
+  const [role, setRole] = useState<Role>('recipient');
+  const [view, setView] = useState<View>('hub');
+  const [listings, setListings] = useState<Listing[]>(SP_DATA.listings);
+  const [drawerId, setDrawerId] = useState<string | null>(null);
+  const [showPost, setShowPost] = useState(false);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [now, setNow] = useState(new Date(SP_DATA.now));
+
+  // Tick the clock every 30 s (simulates real-time)
+  useEffect(() => {
+    const id = setInterval(() => setNow(prev => new Date(prev.getTime() + 60000)), 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  const addToast = useCallback((msg: string) => {
+    const id = Math.random().toString(36).slice(2);
+    setToasts(t => [...t, { id, msg }]);
+    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 3000);
+  }, []);
+
+  const openListing  = useCallback((id: string) => setDrawerId(id), []);
+  const claimListing = useCallback((id: string) => {
+    setListings(ls => ls.map(l => l.id === id ? { ...l, claims: Math.min(l.max, l.claims + 1) } : l));
+  }, []);
+  const addListing = useCallback((l: Listing) => setListings(ls => [l, ...ls]), []);
+
+  function switchRole(r: Role) {
+    setRole(r);
+    setView(r === 'business' ? 'business' : 'hub');
+  }
+
+  const ctx: AppContext = { data: SP_DATA, now, listings, openListing, claimListing, addListing, addToast };
+  const activeListing = listings.find(l => l.id === drawerId);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
+    <>
+      <div className="nav-wrap">
+        <nav className="nav">
+          <a className="brand" onClick={() => setView(role === 'business' ? 'business' : 'hub')}>
+            <span className="brand-mark" />
+            <span className="brand-name">Spare<em>Plate</em></span>
           </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+
+          <div className="nav-links">
+            {role === 'recipient' && (
+              <>
+                <button className={`nav-link ${view === 'hub'   ? 'active' : ''}`} onClick={() => setView('hub')}>Find food</button>
+                <button className={`nav-link ${view === 'about' ? 'active' : ''}`} onClick={() => setView('about')}>How it works</button>
+              </>
+            )}
+            {role === 'business' && (
+              <>
+                <button className={`nav-link ${view === 'business' ? 'active' : ''}`} onClick={() => setView('business')}>Dashboard</button>
+                <button className={`nav-link ${view === 'hub'      ? 'active' : ''}`} onClick={() => setView('hub')}>Live map</button>
+                <button className={`nav-link ${view === 'about'    ? 'active' : ''}`} onClick={() => setView('about')}>How it works</button>
+              </>
+            )}
+          </div>
+
+          <div className="role-pill">
+            <button className={role === 'recipient' ? 'on' : ''} onClick={() => switchRole('recipient')}>
+              <Icons.User size={13} />Recipient
+            </button>
+            <button className={role === 'business' ? 'on' : ''} onClick={() => switchRole('business')}>
+              <Icons.Truck size={13} />Business
+            </button>
+          </div>
+
+          <div className="nav-actions">
+            <button className="bell">
+              <Icons.Bell size={15} /><span className="pulse" />
+            </button>
+            <div className="avatar-sm">{role === 'business' ? 'ND' : 'JC'}</div>
+          </div>
+        </nav>
+      </div>
+
+      <main>
+        {view === 'hub'      && <HubView ctx={ctx} />}
+        {view === 'business' && <BusinessView ctx={ctx} openPost={() => setShowPost(true)} />}
+        {view === 'about'    && <AboutView ctx={ctx} setView={setView} />}
       </main>
-    </div>
+
+      {activeListing && (
+        <ListingDrawer ctx={ctx} listing={activeListing} onClose={() => setDrawerId(null)} />
+      )}
+      {showPost && (
+        <PostListingModal ctx={ctx} onClose={() => setShowPost(false)} />
+      )}
+
+      <div className="toast-stack">
+        {toasts.map(t => (
+          <div key={t.id} className="toast">
+            <span className="dot" />{t.msg}
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
